@@ -1,0 +1,590 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.7.1
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+
+# Assignment 1
+
+In this assignment, you'll be working with messy medical data and using regex
+to extract relevant information from the data.
+
+Each line of the `dates.txt` file corresponds to a medical note. Each note has
+a date that needs to be extracted, but each date is encoded in one of many
+formats.
+
+The goal of this assignment is to correctly identify all of the different date
+variants encoded in this dataset and to properly normalize and sort the dates.
+
+Here is a list of some of the variants you might encounter in this dataset:
+* 04/20/2009; 04/20/09; 4/20/09; 4/3/09
+* Mar-20-2009; Mar 20, 2009; March 20, 2009;  Mar. 20, 2009; Mar 20 2009;
+* 20 Mar 2009; 20 March 2009; 20 Mar. 2009; 20 March, 2009
+* Mar 20th, 2009; Mar 21st, 2009; Mar 22nd, 2009
+* Feb 2009; Sep 2009; Oct 2010
+* 6/2008; 12/2009
+* 2009; 2010
+
+Once you have extracted these date patterns from the text, the next step is to
+sort them in ascending chronological order according to the following rules:
+* Assume all dates in xx/xx/xx format are mm/dd/yy
+* Assume all dates where year is encoded in only two digits are years from the
+  1900's (e.g. 1/5/89 is January 5th, 1989)
+* If the day is missing (e.g. 9/2009), assume it is the first day of the month (e.g.
+  September 1, 2009).
+* If the month is missing (e.g. 2010), assume it is the first of January of
+  that year (e.g. January 1, 2010).
+* Watch out for potential typos as this is a raw, real-life derived dataset.
+
+With these rules in mind, find the correct date in each note and return
+a pandas Series in chronological order of the original Series' indices.
+
+For example if the original series was this:
+
+    0    1999
+    1    2010
+    2    1978
+    3    2015
+    4    1985
+
+Your function should return this:
+
+    0    2
+    1    4
+    2    0
+    3    1
+    4    3
+
+Your score will be calculated using [Kendall's
+tau](https://en.wikipedia.org/wiki/Kendall_rank_correlation_coefficient),
+a correlation measure for ordinal data.
+
+*This function should return a Series of length 500 and dtype int.*
+
+
+```{python}
+import pandas as pd
+```
+
+
+## Figuring out the solution
+
+
+```{python}
+# Playing around to figure out which regular expressions I'll have to use...
+
+# Columns for storing the dates:
+date_cols = ['Year', 'Month', 'Day']
+
+# Months dictionary:
+mon_dic = {
+    'jan': '01',
+    'feb': '02',
+    'mar': '03',
+    'apr': '04',
+    'may': '05',
+    'jun': '06',
+    'jul': '07',
+    'aug': '08',
+    'sep': '09',
+    'oct': '10',
+    'nov': '11',
+    'dec': '12'
+}
+
+# Part of some regular expressions that is related to the months:
+mons = '|'.join(list(mon_dic.keys()))
+```
+
+
+```{python}
+def sort_dates(phrases, regex):
+    """Build a DataFrame containing the sorted dates.
+
+    Arguments:
+        phrases: DataFrame with phrases that contain dates.
+        regex: String corresponding to the regular expression used to extract the dates.
+
+    Returns:
+        sorted_dates: DataFrame with the dates extracted from phrases. These dates are sorted in ascending order.
+    """
+
+    # Convert every phrase to lowercase, and extract the dates:
+    sorted_dates = phrases['Phrase'].str.lower().str.extract(regex)
+
+    # Fix the dates with missing values in the Month and Day columns:
+    sorted_dates[date_cols[1:]] = sorted_dates[date_cols[1:]].fillna("1")
+
+    # Use the mon_dic dictionary to map the month names to numbers (as strings):
+    sorted_dates['Month'] = sorted_dates['Month'].apply(lambda m: mon_dic[m] if m in mon_dic else m)
+
+    # Convert the values in the Month, Day and Year columns to integers:
+    sorted_dates[date_cols] = sorted_dates[date_cols].astype(int)
+
+    # Fix the years with only 2 digits:
+    sorted_dates['Year'] = sorted_dates['Year'].apply(lambda y: y + 1900 if y < 100 else y)
+
+    # Sort the dates in ascending order:
+    sorted_dates = sorted_dates.sort_values(date_cols)
+
+    return sorted_dates
+```
+
+
+```{python}
+# 1st group of variants:
+group_1 = [
+    'Lorem ipsum 04/20/2009 dolor sit amet',
+    'consectetur adipiscing elit 04/20/09',
+    'sed do eiusmod 4/20/09 tempor incididunt',
+    'ut 4/3/09 labore et dolore magna aliqua'
+]
+
+phrases_1 = pd.DataFrame(group_1, columns=['Phrase'])
+phrases_1
+```
+
+
+```{python}
+regex_1 = r'(?P<Date>(?P<Month>\d{1,2})[/-](?P<Day>\d{1,2})[/-](?P<Year>\d{2,4}))'
+sorted_dates_1 = sort_dates(phrases_1, regex_1)
+sorted_dates_1
+```
+
+
+```{python}
+# 2nd group of variants:
+group_2 = [
+    'Lorem ipsum 04/20/2009 dolor sit amet',
+    'consectetur adipiscing elit 04/20/09',
+    'sed do eiusmod 4/20/09 tempor incididunt',
+    'ut 4/3/09 labore et dolore magna aliqua',
+    'Ut enim ad 6/2008 minim veniam',
+    '12/2009 quis nostrud exercitation ullamco',
+    'laboris nisi 2009 ut aliquip ex ea'
+]
+
+phrases_2 = pd.DataFrame(group_2, columns=['Phrase'])
+phrases_2
+```
+
+
+```{python}
+regex_2 = r'(?P<Date>(?:(?P<Month>\d{1,2})[- /]+(?:(?P<Day>\d{1,2})[- /]+)?)?(?P<Year>\d{2,4}))'
+sorted_dates_2 = sort_dates(phrases_2, regex_2)
+sorted_dates_2
+```
+
+
+```{python}
+# 3rd group of variants:
+group_3 = [
+    'Lorem ipsum Mar-20-2009 dolor sit amet',
+    'consectetur adipiscing elit Mar 20, 2009',
+    'sed do eiusmod March 20, 2009 tempor incididunt',
+    'ut Mar. 20, 2009 labore et dolore magna aliqua',
+    'Ut enim ad Mar 20 2009 minim veniam',
+    'Integer porta leo ac nunc mattis, Mar 20th, 2009 luctus libero egestas',
+    'Donec Mar 21st, 2009 lectus sed nibh facilisis, nec pharetra tellus tristique',
+    'Phasellus non lorem ut Mar 22nd, 2009 venenatis pretium nec nec dolor'
+]
+
+phrases_3 = pd.DataFrame(group_3, columns=['Phrase'])
+phrases_3
+```
+
+
+```{python}
+regex_3 = r'(?P<Date>(?P<Month>' + mons + r')[a-z.]*[ -]+(?P<Day>\d{1,2})[a-z,]*[ -]+(?P<Year>\d{2,4}))'
+sorted_dates_3 = sort_dates(phrases_3, regex_3)
+sorted_dates_3
+```
+
+
+```{python}
+# 4th group of variants:
+group_4 = [
+    'Lorem ipsum Mar-20-2009 dolor sit amet',
+    'consectetur adipiscing elit Mar 20, 2009',
+    'sed do eiusmod March 20, 2009 tempor incididunt',
+    'ut Mar. 20, 2009 labore et dolore magna aliqua',
+    'Ut enim ad Mar 20 2009 minim veniam',
+    'Integer porta leo ac nunc mattis, Mar 20th, 2009 luctus libero egestas',
+    'Donec Mar 21st, 2009 lectus sed nibh facilisis, nec pharetra tellus tristique',
+    'Phasellus non lorem ut Mar 22nd, 2009 venenatis pretium nec nec dolor',
+    'Feb 2009 Cras a augue non nibh ultricies pulvinar',
+    'Curabitur sagittis Sep 2009 lacus eu nisi dictum bibendum',
+    'Nunc vestibulum eros nec Oct 2010 euismod'
+]
+
+phrases_4 = pd.DataFrame(group_4, columns=['Phrase'])
+phrases_4
+```
+
+
+```{python}
+regex_4 = r'(?P<Date>(?P<Month>' + mons + r')[a-z.]*[ -]+(?:(?P<Day>\d{1,2})[a-z,]*[ -]+)?(?P<Year>\d{2,4}))'
+sorted_dates_4 = sort_dates(phrases_4, regex_4)
+sorted_dates_4
+```
+
+
+```{python}
+# 5th group of variants:
+group_5 = [
+    'Nunc dictum felis id lacus 20 Mar 2009, vestibulum pharetra massa volutpat',
+    'Suspendisse at neque 20 March 2009 risus finibus fermentum',
+    'Nullam eu orci lacinia, 20 Mar. 2009 ante sed, hendrerit ex',
+    'Nullam elementum felis ac iaculis 20 March, 2009'
+]
+
+phrases_5 = pd.DataFrame(group_5, columns=['Phrase'])
+phrases_5
+```
+
+
+```{python}
+regex_5 = r'(?P<Date>(?P<Day>\d{1,2}) +(?P<Month>' + mons + r')[a-z.,]* +(?P<Year>\d{2,4}))'
+sorted_dates_5 = sort_dates(phrases_5, regex_5)
+sorted_dates_5
+```
+
+
+```{python}
+def extract_fix_dates(phrases, regex):
+    """Build a DataFrame containing the dates.
+
+    Arguments:
+        phrases: DataFrame with phrases that contain dates.
+        regex: String corresponding to the regular expression used to extract the dates.
+
+    Returns:
+        dates: DataFrame with the dates extracted from phrases.
+    """
+
+    # Convert every phrase to lowercase, and extract the dates:
+    dates = phrases['Phrase'].str.lower().str.extract(regex)
+
+    # Fix the dates with missing values in the Month and Day columns:
+    dates[date_cols[1:]] = dates[date_cols[1:]].fillna("1")
+
+    # Remove every row that wasn't completely fixed by the previous command:
+    dates = dates.dropna()
+
+    # Use the mon_dic dictionary to map the month names to numbers (as strings):
+    dates['Month'] = dates['Month'].apply(lambda m: mon_dic[m] if m in mon_dic else m)
+
+    # Convert the values in the Month, Day and Year columns to integers:
+    dates[date_cols] = dates[date_cols].astype(int)
+
+    # Fix the years with only 2 digits:
+    dates['Year'] = dates['Year'].apply(lambda y: y + 1900 if y < 100 else y)
+
+    return dates
+```
+
+
+```{python}
+def extract_fix_sort_dates(phrases, regexs):
+    """Build a DataFrame containing the sorted dates. The dates are extracted
+       with the aid of several regular expressions.
+
+    Arguments:
+        phrases: DataFrame with phrases that contain dates.
+        regexs: List of strings corresponding to the regular expressions used to extract the dates.
+
+    Returns:
+        sorted_dates: DataFrame with the dates extracted from phrases. These dates are sorted in ascending order.
+        remain_phrases: DataFrame with the rows of phrases containing dates that couldn't be extracted.
+    """
+
+    # Initialize remain_phrases:
+    remain_phrases = phrases.copy()
+
+    # List of DataFrames containing dates:
+    dates_dfs = []
+
+    # Loop over the regular expressions:
+    for regex in regexs:
+        # Use the regular expression regex to extract dates from the remaining phrases:
+        tmp_df = extract_fix_dates(remain_phrases, regex)
+        # Update dates_dfs:
+        dates_dfs.append(tmp_df)
+        # Update the remaining phrases:
+        remain_phrases = remain_phrases.drop(index=tmp_df.index.values)
+
+    # Concatenate the DataFrames stored in dates_dfs, and sort the dates:
+    sorted_dates = pd.concat(dates_dfs, sort=False).sort_values(date_cols)
+
+    return sorted_dates, remain_phrases
+```
+
+
+```{python}
+# 6th group of variants:
+group_6 = [
+    'Nunc dictum felis id lacus 20 Mar 2009, vestibulum pharetra massa volutpat',
+    'Suspendisse at neque 20 March 2009 risus finibus fermentum',
+    'Nullam eu orci lacinia, 20 Mar. 2009 ante sed, hendrerit ex',
+    'Nullam elementum felis ac iaculis 20 March, 2009',
+    'Lorem ipsum Mar-20-2009 dolor sit amet',
+    'consectetur adipiscing elit Mar 20, 2009',
+    'sed do eiusmod March 20, 2009 tempor incididunt',
+    'ut Mar. 20, 2009 labore et dolore magna aliqua',
+    'Ut enim ad Mar 20 2009 minim veniam',
+    'Integer porta leo ac nunc mattis, Mar 20th, 2009 luctus libero egestas',
+    'Donec Mar 21st, 2009 lectus sed nibh facilisis, nec pharetra tellus tristique',
+    'Phasellus non lorem ut Mar 22nd, 2009 venenatis pretium nec nec dolor',
+    'Feb 2009 Cras a augue non nibh ultricies pulvinar',
+    'Curabitur sagittis Sep 2009 lacus eu nisi dictum bibendum',
+    'Nunc vestibulum eros nec Oct 2010 euismod'
+]
+
+phrases_6 = pd.DataFrame(group_6, columns=['Phrase'])
+phrases_6
+```
+
+
+```{python}
+regexs_1 = [
+    r'(?P<Date>(?P<Day>\d{1,2}) +(?P<Month>' + mons + r')[a-z.,]* +(?P<Year>\d{2,4}))',
+    r'(?P<Date>(?P<Month>' + mons + r')[a-z.]*[ -]+(?:(?P<Day>\d{1,2})[a-z,]*[ -]+)?(?P<Year>\d{2,4}))'
+]
+sorted_dates_6, remain_phrases_1 = extract_fix_sort_dates(phrases_6, regexs_1)
+sorted_dates_6
+```
+
+
+```{python}
+remain_phrases_1
+```
+
+
+```{python}
+print(f"Number of phrases containing dates that couldn't be extracted: {remain_phrases_1.shape[0]}")
+```
+
+
+```{python}
+# 7th group of variants:
+group_7 = [
+    'Nunc dictum felis id lacus 20 Mar 2009, vestibulum pharetra massa volutpat',
+    'Suspendisse at neque 20 March 2009 risus finibus fermentum',
+    'Nullam eu orci lacinia, 20 Mar. 2009 ante sed, hendrerit ex',
+    'Nullam elementum felis ac iaculis 20 March, 2009',
+    'Lorem ipsum Mar-20-2009 dolor sit amet',
+    'consectetur adipiscing elit Mar 20, 2009',
+    'sed do eiusmod March 20, 2009 tempor incididunt',
+    'ut Mar. 20, 2009 labore et dolore magna aliqua',
+    'Ut enim ad Mar 20 2009 minim veniam',
+    'Integer porta leo ac nunc mattis, Mar 20th, 2009 luctus libero egestas',
+    'Donec Mar 21st, 2009 lectus sed nibh facilisis, nec pharetra tellus tristique',
+    'Phasellus non lorem ut Mar 22nd, 2009 venenatis pretium nec nec dolor',
+    'Feb 2009 Cras a augue non nibh ultricies pulvinar',
+    'Curabitur sagittis Sep 2009 lacus eu nisi dictum bibendum',
+    'Nunc vestibulum eros nec Oct 2010 euismod',
+    'Lorem ipsum 04/20/2009 dolor sit amet',
+    'consectetur adipiscing elit 04/20/09',
+    'sed do eiusmod 4/20/09 tempor incididunt',
+    'ut 4/3/09 labore et dolore magna aliqua',
+    'Ut enim ad 6/2008 minim veniam',
+    '12/2009 quis nostrud exercitation ullamco',
+    'laboris nisi 2009 ut aliquip ex ea'
+]
+
+phrases_7 = pd.DataFrame(group_7, columns=['Phrase'])
+phrases_7
+```
+
+
+```{python}
+regexs_2 = [
+    r'(?P<Date>(?P<Day>\d{1,2}) +(?P<Month>' + mons + r')[a-z.,]* +(?P<Year>\d{2,4}))',
+    r'(?P<Date>(?P<Month>' + mons + r')[a-z.]*[ -]+(?:(?P<Day>\d{1,2})[a-z,]*[ -]+)?(?P<Year>\d{2,4}))',
+    r'(?P<Date>(?:(?P<Month>\d{1,2})[- /]+(?:(?P<Day>\d{1,2})[- /]+)?)?(?P<Year>\d{2,4}))'
+]
+sorted_dates_7, remain_phrases_2 = extract_fix_sort_dates(phrases_7, regexs_2)
+sorted_dates_7
+```
+
+
+```{python}
+remain_phrases_2
+```
+
+
+```{python}
+print(f"Number of phrases containing dates that couldn't be extracted: {remain_phrases_2.shape[0]}")
+```
+
+
+## Solution
+
+
+For the sake of clarity, I'll repeat some code below.
+
+
+```{python}
+import pandas as pd
+
+
+# Create a Series from the content of dates.txt:
+with open('dates.txt') as file:
+    doc = [note for note in file]
+df = pd.Series(doc)
+
+df.head(10)
+```
+
+
+Unfortunately, I have to cram the rest of the code into a single cell. If
+I don't do so, then the autograder doesn't accept my solution as correct.
+
+
+```{python}
+def date_sorter():
+    """Build a Series containing the indices of the notes in dates.txt. These
+       indices are organized so that the corresponding dates are in chronological order.
+
+    Returns:
+        indices: Indices of the notes, organized so that the dates are in chronological order.
+    """
+
+    # Columns for storing the dates:
+    date_cols = ['Year', 'Month', 'Day']
+
+    # Months dictionary:
+    mon_dic = {
+        'jan': '01',
+        'feb': '02',
+        'mar': '03',
+        'apr': '04',
+        'may': '05',
+        'jun': '06',
+        'jul': '07',
+        'aug': '08',
+        'sep': '09',
+        'oct': '10',
+        'nov': '11',
+        'dec': '12'
+    }
+
+    # Create the list of regular expressions that will be used to extract the dates from the notes:
+    days = '|'.join([str(day) for day in range(1, 32)] + ['0' + str(day) for day in range(1, 10)])
+    mons = '|'.join(list(mon_dic.values()) + [str(month) for month in range(1, 10)])
+    regex_day = r'(?P<Day>' + days + r')'
+    regex_month_1 = r'(?P<Month>' + '|'.join(list(mon_dic.keys())) + r')'
+    regex_month_2 = r'(?P<Month>' + mons + r')'
+    regex_year_1 = r'(?P<Year>(?<![0-9])(?:(?:[789]{1}[0-9]{1})|(?:(?:19|20){1}[0-9]{2}))(?![0-9]))'
+    regex_year_2 = r'(?P<Year>(?<![0-9])(?:(?:19|20){1}[0-9]{2})(?![0-9]))'
+    regexs = [
+        r'(?P<Date>' + regex_day + r' +' + regex_month_1 + r'[a-z.,]* +' + regex_year_1 + r')',
+        r'(?P<Date>' + regex_month_1 + r'[a-z.,]*[ -]+' + regex_day + r'[a-z,]*[ -]+' + regex_year_1 + r')',
+        r'(?P<Date>' + regex_month_2 + r'[-/]+' + regex_day + r'[-/]+' + regex_year_1 + r')',
+        r'(?P<Date>' + regex_month_1 + r'[a-z.,]*[ -]+(?:' + regex_day + r'[a-z,]*[ -]+)?' + regex_year_1 + r')',
+        r'(?P<Date>' + regex_month_2 + r'[-/]+(?:' + regex_day + r'[-/]+)?' + regex_year_1 + r')',
+        r'(?P<Date>(?:' + regex_month_2 + r'[-/]+(?:' + regex_day + r'[-/]+)?)?' + regex_year_2 + r')'
+    ]
+
+
+    def extract_fix_dates(notes, regex):
+        """Build a DataFrame containing the dates.
+
+        Arguments:
+            notes: Series with notes that contain dates.
+            regex: String corresponding to the regular expression used to extract the dates.
+
+        Returns:
+            dates: DataFrame with the dates extracted from notes.
+        """
+
+        # Convert every note to lowercase, and extract the dates:
+        dates = notes.str.lower().str.extract(regex)
+
+        # Fix the dates with missing values in the Month and Day columns:
+        dates[date_cols[1:]] = dates[date_cols[1:]].fillna("1")
+
+        # Remove every row that wasn't completely fixed by the previous command:
+        dates = dates.dropna()
+
+        # Use the mon_dic dictionary to map the month names to numbers (as strings):
+        dates['Month'] = dates['Month'].apply(lambda m: mon_dic[m] if m in mon_dic else m)
+
+        # Convert the values in the Month, Day and Year columns to integers:
+        dates[date_cols] = dates[date_cols].astype(int)
+
+        # Fix the years with only 2 digits:
+        dates['Year'] = dates['Year'].apply(lambda y: y + 1900 if y < 100 else y)
+
+        return dates
+
+
+    def extract_fix_sort_dates(notes, regexs):
+        """Build a DataFrame containing the sorted dates. The dates are extracted
+           with the aid of several regular expressions.
+
+        Arguments:
+            notes: Series with notes that contain dates.
+            regexs: List of strings corresponding to the regular expressions used to extract the dates.
+
+        Returns:
+            sorted_dates: DataFrame with the dates extracted from notes. These dates are sorted in ascending order.
+            remain_notes: Series with the notes containing dates that couldn't be extracted.
+        """
+
+        # Initialize remain_notes:
+        remain_notes = notes.copy()
+
+        # List of DataFrames containing dates:
+        dates_dfs = []
+
+        # Loop over the regular expressions:
+        for regex in regexs:
+            # Use the regular expression regex to extract dates from the remaining notes:
+            tmp_df = extract_fix_dates(remain_notes, regex)
+            # Update dates_dfs:
+            dates_dfs.append(tmp_df)
+            # Update the remaining notes:
+            remain_notes = remain_notes.drop(tmp_df.index.values)
+
+        # Concatenate the DataFrames stored in dates_dfs, and sort the dates:
+        sorted_dates = pd.concat(dates_dfs, sort=False).sort_values(date_cols)
+        # The above command won't work in Coursera's environment. Use the following instead:
+        # sorted_dates = pd.concat(dates_dfs).sort_values(date_cols)
+
+        return sorted_dates, remain_notes
+
+
+    # Extract the dates from the notes, and put these dates in chronological order:
+    sorted_dates, remain_notes = extract_fix_sort_dates(df, regexs)
+
+    # Build the Series containing the indices of the notes:
+    indices = pd.Series(data=sorted_dates.index.values, dtype=int)
+
+    # A few tests:
+    num_notes = df.size
+    assert indices.size == num_notes
+    assert remain_notes.size == 0
+    assert sorted_dates['Day'].between(1, 31).astype(int).sum() == num_notes
+    assert sorted_dates['Month'].between(1, 12).astype(int).sum() == num_notes
+    assert sorted_dates['Year'].between(1970, 2016).astype(int).sum() == num_notes
+
+    return indices
+```
+
+
+```{python}
+# Print the result of date_sorter to a csv file:
+result = date_sorter()
+result.to_csv('result_assignment_1.csv')
+```
