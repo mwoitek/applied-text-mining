@@ -27,7 +27,8 @@ that uses NLTK to find words similar to the misspelling.
 ```{python}
 import nltk
 import numpy as np
-import pandas as pd
+from nltk import FreqDist
+from nltk.stem import WordNetLemmatizer
 
 
 # If you would like to work with the raw text, you can use 'moby_raw'.
@@ -51,7 +52,7 @@ How many tokens (words and punctuation symbols) are in `text1`?
 def example_one():
 
     # Solution 1:
-    sol_1 = len(nltk.word_tokenize(moby_raw))
+    sol_1 = len(moby_tokens)
 
     # Solution 2:
     sol_2 = len(text1)
@@ -78,7 +79,7 @@ How many unique tokens (unique words and punctuation) does `text1` have?
 def example_two():
 
     # Solution 1:
-    sol_1 = len(set(nltk.word_tokenize(moby_raw)))
+    sol_1 = len(set(moby_tokens))
 
     # Solution 2:
     sol_2 = len(set(text1))
@@ -102,9 +103,6 @@ After lemmatizing the verbs, how many unique tokens does `text1` have?
 
 
 ```{python}
-from nltk.stem import WordNetLemmatizer
-
-
 def example_three():
 
     lemmatizer = WordNetLemmatizer()
@@ -191,16 +189,19 @@ frequency.*
 
 
 ```{python}
-from nltk import FreqDist
-
-
 def answer_three():
 
     # Compute the frequency of every unique token:
-    freqs = FreqDist(text1)
+    fdist = FreqDist(text1)
 
     # Get the 20 most common unique tokens:
-    top_20 = freqs.most_common(20)
+    top_20 = fdist.most_common(20)
+
+    # Testing:
+    assert type(top_20) == list
+    assert type(top_20[0]) == tuple
+    assert type(top_20[0][0]) == str
+    assert type(top_20[0][1]) == int
 
     return top_20
 
@@ -221,15 +222,17 @@ match the above constraints. To sort your list, use `sorted()`.*
 def answer_four():
 
     # Compute the frequency of every unique token with a length greater than 5:
-    freqs = FreqDist([token for token in moby_tokens if len(token) > 5])
+    fdist = FreqDist([token for token in moby_tokens if len(token) > 5])
 
-    # Get every unique token that satisfies the constraints:
-    token_list = [token for token in freqs.keys() if freqs[token] > 150]
+    # Get every unique token that satisfies the constraints.
+    # Sort the list of tokens.
+    tokens = sorted([token for token in fdist.keys() if fdist[token] > 150])
 
-    # Sort the list of tokens:
-    token_list = sorted(token_list)
+    # Testing:
+    assert type(tokens) == list
+    assert type(tokens[0]) == str
 
-    return token_list
+    return tokens
 
 
 answer_four()
@@ -247,17 +250,21 @@ Find the longest word in `text1` and that word's length.
 def answer_five():
 
     # Get every unique word:
-    word_list = np.array([token for token in set(moby_tokens) if token.isalpha()])
+    words = np.array([token for token in set(moby_tokens) if token.isalpha()])
 
-    # Compute the length of every word in word_list:
-    lens = np.vectorize(len)(word_list)
+    # Compute the length of every unique word:
+    lens = np.vectorize(len)(words)
 
     # Find the longest word and its length:
     idx_max = np.argmax(lens)
-    longest_word = word_list[idx_max]
-    length = lens[idx_max]
+    longest_word = (words[idx_max], lens[idx_max])
 
-    return (longest_word, length)
+    # Testing:
+    assert type(longest_word) == tuple
+    assert type(longest_word[0]) == np.str_
+    assert type(longest_word[1]) == np.int_
+
+    return longest_word
 
 
 answer_five()
@@ -278,7 +285,33 @@ sorted in descending order of frequency.*
 ```{python}
 def answer_six():
 
-    return
+    # Compute the frequency of every unique word:
+    fdist = FreqDist([token for token in moby_tokens if token.isalpha()])
+
+    # Get every unique word with a frequency greater than 2000.
+    # Create two lists. One of them stores the words that satisfy the constraint,
+    # and the other contains the corresponding frequencies.
+    freqs = []
+    words = []
+    for word, freq in fdist.items():
+        if freq > 2000:
+            freqs.append(freq)
+            words.append(word)
+
+    # Create the desired list of tuples:
+    freqs_words = [(freqs[idx], words[idx]) for idx in np.argsort(np.array(freqs))[::-1]]
+
+    # Alternative (shorter) solution:
+    freqs_words_alt = [(tpl[1], tpl[0]) for tpl in fdist.most_common(len(fdist)) if tpl[1] > 2000]
+
+    # Testing:
+    assert freqs_words == freqs_words_alt
+    assert type(freqs_words) == list
+    assert type(freqs_words[0]) == tuple
+    assert type(freqs_words[0][0]) == int
+    assert type(freqs_words[0][1]) == str
+
+    return freqs_words
 
 
 answer_six()
@@ -289,31 +322,60 @@ answer_six()
 
 What is the average number of tokens per sentence?
 
-This function should return a float.
+*This function should return a float.*
+
 
 ```{python}
 def answer_seven():
 
+    # Get every sentence in the text:
+    moby_sents = np.array(nltk.sent_tokenize(moby_raw))
 
-    return # Your answer here
+    # Compute the number of tokens for every sentence:
+    num_toks = np.vectorize(lambda sent: len(nltk.word_tokenize(sent)))(moby_sents)
+
+    # Compute the average number of tokens per sentence:
+    avg_num_toks = num_toks.mean()
+
+    # Testing:
+    assert type(avg_num_toks) == np.float_
+
+    return avg_num_toks
+
 
 answer_seven()
 ```
+
 
 ### Question 8
 
 What are the 5 most frequent parts of speech in this text? What is their frequency?
 
-This function should return a list of tuples of the form (part_of_speech, frequency) sorted in descending order of frequency.
+*This function should return a list of tuples of the form `(part_of_speech, frequency)`
+sorted in descending order of frequency.*
+
 
 ```{python}
 def answer_eight():
 
+    # Compute the frequency of every POS tag:
+    fdist = FreqDist([tpl[1] for tpl in nltk.pos_tag(moby_tokens)])
 
-    return # Your answer here
+    # Get the 5 most frequent POS tags:
+    top_5 = fdist.most_common(5)
+
+    # Testing:
+    assert type(top_5) == list
+    assert type(top_5[0]) == tuple
+    assert type(top_5[0][0]) == str
+    assert type(top_5[0][1]) == int
+
+    return top_5
+
 
 answer_eight()
 ```
+
 
 ## Part 2 - Spelling Recommender
 
