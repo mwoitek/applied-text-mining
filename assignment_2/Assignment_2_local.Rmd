@@ -28,7 +28,10 @@ that uses NLTK to find words similar to the misspelling.
 import nltk
 import numpy as np
 from nltk import FreqDist
+from nltk.corpus import words
+from nltk.metrics.distance import edit_distance, jaccard_distance
 from nltk.stem import WordNetLemmatizer
+from nltk.util import ngrams
 
 
 # If you would like to work with the raw text, you can use 'moby_raw'.
@@ -250,7 +253,7 @@ Find the longest word in `text1` and that word's length.
 def answer_five():
 
     # Get every unique word:
-    words = np.array([token for token in set(moby_tokens) if token.isalpha()])
+    words = np.array([token for token in set(moby_tokens)])
 
     # Compute the length of every unique word:
     lens = np.vectorize(len)(words)
@@ -383,73 +386,185 @@ For this part of the assignment you will create three different spelling
 recommenders, that each take a list of misspelled words and recommends
 a correctly spelled word for every word in the list.
 
-For every misspelled word, the recommender should find find the word in
-correct_spellings that has the shortest distance, and starts with the same
+For every misspelled word, the recommender should find the word in
+`correct_spellings` that has the shortest distance, and starts with the same
 letter as the misspelled word, and return that word as a recommendation.
 
-Each of the three different recommenders will use a different distance measure (outlined below).
+Each of the three different recommenders will use a different distance measure
+(outlined below).
 
 Each of the recommenders should provide recommendations for the three default
-words provided: ['cormulent', 'incendenece', 'validrate'].
+words provided: `['cormulent', 'incendenece', 'validrate']`.
 
 
 ```{python}
-from nltk.corpus import words
-
+# List containing the correctly spelled words:
 correct_spellings = words.words()
 ```
 
 
 ### Question 9
 
-For this recommender, your function should provide recommendations for the three default words provided above using the following distance metric:
+For this recommender, your function should provide recommendations for the
+three default words provided above using the following distance metric:
 
-[Jaccard distance](https://en.wikipedia.org/wiki/Jaccard_index) on the trigrams of the two words.
+[Jaccard distance](https://en.wikipedia.org/wiki/Jaccard_index) on the trigrams
+of the two words.
 
-This function should return a list of length three:
-['cormulent_reccomendation', 'incendenece_reccomendation', 'validrate_reccomendation'].
+*This function should return a list of length three:
+`['cormulent_reccomendation', 'incendenece_reccomendation', 'validrate_reccomendation']`.*
+
 
 ```{python}
+def my_jaccard_distance(set_1, set_2):
+    """Compute the Jaccard distance between two sets.
+
+    Arguments:
+        set_1: 1st set.
+        set_2: 2nd set.
+
+    Returns:
+        jd: Jaccard distance between set_1 and set_2.
+    """
+
+    # Compute the cardinality of the intersection of the two sets:
+    card_inter = len(set_1.intersection(set_2))
+
+    # Compute the cardinality of the union of the two sets:
+    card_union = len(set_1.union(set_2))
+
+    # Compute the Jaccard distance between the two sets:
+    jd = 1 - card_inter / card_union
+
+    return jd
+
+
+# A few tests:
+assert my_jaccard_distance({1, 2, 3, 4}, {1, 2, 3, 4}) == 0
+assert my_jaccard_distance({1, 2, 3, 4}, {3, 4}) == 0.5
+assert my_jaccard_distance({1, 2, 3, 4}, {5, 6}) == 1
+
+
+def recommend_word_jd(misspelled, n):
+    """Recommend a correction for a single misspelled word. This function uses
+       the Jaccard distance as the distance metric.
+
+    Arguments:
+        misspelled: String corresponding to the misspelled word.
+        n: Size of the n-grams involved in the calculations of the Jaccard distance.
+
+    Returns:
+        recommend_1: Recommended correction for the misspelled word.
+    """
+
+    # Get the set of n-grams corresponding to the misspelled word:
+    ngrams_misspelled = set(ngrams(misspelled, n))
+
+    # Get the correctly spelled words that have the same first letter as the misspelled word:
+    possbl_recommends = [word for word in correct_spellings if word[0] == misspelled[0]]
+
+    # For every word selected above, compute the Jaccard distance between the
+    # corresponding set of n-grams and ngrams_misspelled:
+    jds_1 = [jaccard_distance(set(ngrams(word, n)), ngrams_misspelled) for word in possbl_recommends]
+    jds_2 = [my_jaccard_distance(set(ngrams(word, n)), ngrams_misspelled) for word in possbl_recommends]
+
+    # Find the correctly spelled word associated with the shortest Jaccard distance:
+    recommend_1 = possbl_recommends[np.array(jds_1).argmin()]
+    recommend_2 = possbl_recommends[np.array(jds_2).argmin()]
+
+    # Testing:
+    assert recommend_1 == recommend_2
+    assert type(recommend_1) == str
+
+    return recommend_1
+
+
 def answer_nine(entries=['cormulent', 'incendenece', 'validrate']):
 
+    # Recommend a correction for every misspelled word in 'entries'.
+    # This function uses the Jaccard distance between trigrams.
+    recommends = [recommend_word_jd(misspelled=entry, n=3) for entry in entries]
 
-    return # Your answer here
+    return recommends
+
 
 answer_nine()
 ```
 
+
 ### Question 10
 
-For this recommender, your function should provide recommendations for the three default words provided above using the following distance metric:
+For this recommender, your function should provide recommendations for the
+three default words provided above using the following distance metric:
 
-[Jaccard distance](https://en.wikipedia.org/wiki/Jaccard_index) on the 4-grams of the two words.
+[Jaccard distance](https://en.wikipedia.org/wiki/Jaccard_index) on the 4-grams
+of the two words.
 
-This function should return a list of length three:
-['cormulent_reccomendation', 'incendenece_reccomendation', 'validrate_reccomendation'].
+*This function should return a list of length three:
+`['cormulent_reccomendation', 'incendenece_reccomendation', 'validrate_reccomendation']`.*
+
 
 ```{python}
 def answer_ten(entries=['cormulent', 'incendenece', 'validrate']):
 
+    # Recommend a correction for every misspelled word in 'entries'.
+    # This function uses the Jaccard distance between 4-grams.
+    recommends = [recommend_word_jd(misspelled=entry, n=4) for entry in entries]
 
-    return # Your answer here
+    return recommends
+
 
 answer_ten()
 ```
 
+
 ### Question 11
 
-For this recommender, your function should provide recommendations for the three default words provided above using the following distance metric:
+For this recommender, your function should provide recommendations for the
+three default words provided above using the following distance metric:
 
-[Edit distance on the two words with transpositions.](https://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance)
+[Edit distance on the two words with
+transpositions](https://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance).
 
-This function should return a list of length three:
-['cormulent_reccomendation', 'incendenece_reccomendation', 'validrate_reccomendation'].
+*This function should return a list of length three:
+`['cormulent_reccomendation', 'incendenece_reccomendation', 'validrate_reccomendation']`.*
+
 
 ```{python}
+def recommend_word_ed(misspelled):
+    """Recommend a correction for a single misspelled word. This function uses
+       the edit distance as the distance metric.
+
+    Arguments:
+        misspelled: String corresponding to the misspelled word.
+
+    Returns:
+        recommend: Recommended correction for the misspelled word.
+    """
+
+    # Get the correctly spelled words that have the same first letter as the misspelled word:
+    possbl_recommends = [word for word in correct_spellings if word[0] == misspelled[0]]
+
+    # For every word selected above, compute the edit distance between the word and 'misspelled':
+    eds = [edit_distance(word, misspelled) for word in possbl_recommends]
+
+    # Find the correctly spelled word associated with the shortest edit distance:
+    recommend = possbl_recommends[np.array(eds).argmin()]
+
+    # Testing:
+    assert type(recommend) == str
+
+    return recommend
+
+
 def answer_eleven(entries=['cormulent', 'incendenece', 'validrate']):
 
+    # Recommend a correction for every misspelled word in 'entries'.
+    # This function uses the edit distance between words.
+    recommends = [recommend_word_ed(misspelled=entry) for entry in entries]
 
-    return # Your answer here
+    return recommends
+
 
 answer_eleven()
 ```
