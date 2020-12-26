@@ -13,96 +13,179 @@ jupyter:
     name: python3
 ---
 
----
-
-_You are currently looking at **version 1.1** of this notebook. To download notebooks and datafiles, as well as get help on Jupyter notebooks in the Coursera platform, visit the [Jupyter Notebook FAQ](https://www.coursera.org/learn/python-text-mining/resources/d9pwm) course resource._
-
----
-
-
 # Assignment 3
 
-In this assignment you will explore text message data and create models to predict if a message is spam or not. 
+In this assignment you will explore text message data and create models to
+predict if a message is spam or not.
+
 
 ```{python}
-import pandas as pd
 import numpy as np
+import pandas as pd
+from scipy.sparse import csr_matrix, hstack
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
 
+
+# Read the data into a DataFrame:
 spam_data = pd.read_csv('spam.csv')
 
-spam_data['target'] = np.where(spam_data['target']=='spam',1,0)
+# Transform the 'target' column.
+# If the message is spam, this column will contain 1. Otherwise, it'll contain 0.
+spam_data['target'] = np.where(spam_data['target'] == 'spam', 1, 0)
+
+# Print the first 10 rows of spam_data:
 spam_data.head(10)
 ```
 
+
 ```{python}
-from sklearn.model_selection import train_test_split
+# Split the data into training and test sets:
+X_train, X_test, y_train, y_test = train_test_split(
+    spam_data['text'],
+    spam_data['target'],
+    random_state=0
+)
 
+# Get some info on the objects defined above:
 
-X_train, X_test, y_train, y_test = train_test_split(spam_data['text'], 
-                                                    spam_data['target'], 
-                                                    random_state=0)
+# print(f'type(X_train) = {type(X_train)}')
+# print(f'type(X_test) = {type(X_test)}')
+# print(f'type(y_train) = {type(y_train)}')
+# print(f'type(y_test) = {type(y_test)}\n')
+
+# print(f'X_train.size = {X_train.size}')
+# print(f'X_test.size = {X_test.size}')
+# print(f'y_train.size = {y_train.size}')
+# print(f'y_test.size = {y_test.size}')
 ```
 
-### Question 1
+
+## Question 1
+
 What percentage of the documents in `spam_data` are spam?
 
-*This function should return a float, the percent value (i.e. $ratio * 100$).*
+*This function should return a float.*
+
 
 ```{python}
 def answer_one():
-    
-    
-    return #Your answer here
+
+    # Compute the total number of documents:
+    num_docs = spam_data.shape[0]
+
+    # Compute the number of documents labelled as 'spam':
+    num_spam = spam_data['target'].sum()
+
+    # Compute the percentage:
+    percent = 100 * (num_spam / num_docs)
+
+    # Testing:
+    assert type(percent) == np.float_
+
+    return percent
 ```
+
 
 ```{python}
 answer_one()
 ```
 
-### Question 2
 
-Fit the training data `X_train` using a Count Vectorizer with default parameters.
+## Question 2
+
+Fit the training data `X_train` using a `CountVectorizer` with default
+parameters.
 
 What is the longest token in the vocabulary?
 
 *This function should return a string.*
 
-```{python}
-from sklearn.feature_extraction.text import CountVectorizer
 
+```{python}
 def answer_two():
-    
-    
-    return #Your answer here
+
+    # Fit the CountVectorizer to the training data.
+    # Learn a vocabulary dictionary of all tokens in X_train.
+    cv = CountVectorizer().fit(X_train)
+
+    # Get the unique tokens in the training data:
+    toks = np.array(cv.get_feature_names())
+
+    # Find the longest token:
+    longest_token = toks[(np.vectorize(len)(toks)).argmax()]
+
+    # Testing:
+    assert type(longest_token) == np.str_
+
+    return longest_token
 ```
+
 
 ```{python}
 answer_two()
 ```
 
-### Question 3
 
-Fit and transform the training data `X_train` using a Count Vectorizer with default parameters.
+## Question 3
 
-Next, fit a fit a multinomial Naive Bayes classifier model with smoothing `alpha=0.1`. Find the area under the curve (AUC) score using the transformed test data.
+Fit and transform the training data `X_train` using a `CountVectorizer` with
+default parameters.
+
+Next, fit a multinomial Naive Bayes classifier model with smoothing
+\\( \alpha = 0.1 \\). Find the area under the curve
+[(AUC)](https://developers.google.com/machine-learning/crash-course/classification/roc-and-auc)
+score using the transformed test data.
 
 *This function should return the AUC score as a float.*
 
-```{python}
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import roc_auc_score
 
+```{python}
 def answer_three():
-    
-    
-    return #Your answer here
+
+    # Fit the CountVectorizer to the training data.
+    # Learn a vocabulary dictionary of all tokens in X_train.
+    cv = CountVectorizer().fit(X_train)
+
+    # Transform the documents in the training data to a document-term matrix.
+    # Extract token counts using the vocabulary fitted with 'fit'.
+    X_train_vect = cv.transform(X_train)
+    # X_train_vect[i, j] = Number of occurrences of the j-th token in the i-th document
+
+    # A few tests, just to understand what is going on here:
+    # Number of rows of X_train_vect = Number of documents in the training data
+    assert X_train_vect.shape[0] == X_train.size
+    # Number of columns of X_train_vect = Number of unique tokens in the training data
+    assert X_train_vect.shape[1] == len(cv.get_feature_names())
+
+    # Train a multinomial Naive Bayes classifier model with smoothing alpha = 0.1:
+    model = MultinomialNB(alpha=0.1)
+    model.fit(X_train_vect, y_train)
+
+    # Use the trained model to perform classification on the test documents X_test:
+    X_test_vect = cv.transform(X_test)
+    predictions = model.predict(X_test_vect)
+
+    # Compute the AUC score:
+    auc = roc_auc_score(y_test, predictions)
+
+    # Testing:
+    assert type(auc) == np.float_
+
+    return auc
 ```
+
 
 ```{python}
 answer_three()
 ```
 
-### Question 4
+
+## Question 4
 
 Fit and transform the training data `X_train` using a Tfidf Vectorizer with default parameters.
 
@@ -110,17 +193,16 @@ What 20 features have the smallest tf-idf and what 20 have the largest tf-idf?
 
 Put these features in a two series where each series is sorted by tf-idf value and then alphabetically by feature name. The index of the series should be the feature name, and the data should be the tf-idf.
 
-The series of 20 features with smallest tf-idfs should be sorted smallest tfidf first, the list of 20 features with largest tf-idfs should be sorted largest first. 
+The series of 20 features with smallest tf-idfs should be sorted smallest tfidf first, the list of 20 features with largest tf-idfs should be sorted largest first.
 
 *This function should return a tuple of two series
 `(smallest tf-idfs series, largest tf-idfs series)`.*
 
 ```{python}
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 def answer_four():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -138,8 +220,8 @@ Then fit a multinomial Naive Bayes classifier model with smoothing `alpha=0.1` a
 
 ```{python}
 def answer_five():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -155,8 +237,8 @@ What is the average length of documents (number of characters) for not spam and 
 
 ```{python}
 def answer_six():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -174,7 +256,6 @@ def add_feature(X, feature_to_add):
     Returns sparse feature matrix with added feature.
     feature_to_add can also be a list of features.
     """
-    from scipy.sparse import csr_matrix, hstack
     return hstack([X, csr_matrix(feature_to_add).T], 'csr')
 ```
 
@@ -187,11 +268,10 @@ Using this document-term matrix and an additional feature, **the length of docum
 *This function should return the AUC score as a float.*
 
 ```{python}
-from sklearn.svm import SVC
 
 def answer_seven():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -207,8 +287,8 @@ What is the average number of digits per document for not spam and spam document
 
 ```{python}
 def answer_eight():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -229,11 +309,10 @@ fit a Logistic Regression model with regularization `C=100`. Then compute the ar
 *This function should return the AUC score as a float.*
 
 ```{python}
-from sklearn.linear_model import LogisticRegression
 
 def answer_nine():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -251,8 +330,8 @@ What is the average number of non-word characters (anything other than a letter,
 
 ```{python}
 def answer_ten():
-    
-    
+
+
     return #Your answer here
 ```
 
@@ -284,8 +363,8 @@ The three features that were added to the document term matrix should have the f
 
 ```{python}
 def answer_eleven():
-    
-    
+
+
     return #Your answer here
 ```
 
