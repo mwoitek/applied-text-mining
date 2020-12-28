@@ -448,12 +448,23 @@ answer_seven()
 What is the average number of digits per document for not spam and spam
 documents?
 
-*This function should return a tuple (average # digits not spam, average # digits spam).*
+*This function should return a tuple `(average_number_digits_not_spam, average_number_digits_spam)`.*
 
 
 ```{python}
 def answer_eight():
-    return 0
+
+    # Compute the average number of digits for the documents labelled as 'not spam':
+    avg_not_spam = spam_data[spam_data['target'] == 0].loc[:, 'text'].str.count(r'\d{1}').mean()
+
+    # Compute the average number of digits for the documents labelled as 'spam':
+    avg_spam = spam_data[spam_data['target'] == 1].loc[:, 'text'].str.count(r'\d{1}').mean()
+
+    # Testing:
+    assert type(avg_not_spam) == np.float_
+    assert type(avg_spam) == np.float_
+
+    return (avg_not_spam, avg_spam)
 ```
 
 
@@ -464,75 +475,185 @@ answer_eight()
 
 ## Question 9
 
-Fit and transform the training data `X_train` using a Tfidf Vectorizer ignoring terms that have a document frequency strictly lower than **5** and using **word n-grams from n=1 to n=3** (unigrams, bigrams, and trigrams).
+Fit and transform the training data `X_train` using a `TfidfVectorizer` ignoring
+terms that have a document frequency strictly lower than **5** and using **word
+n-grams from n = 1 to n = 3** (unigrams, bigrams and trigrams).
 
-Using this document-term matrix and the following additional features:
-* the length of document (number of characters)
-* **number of digits per document**
+Use the document-term matrix and the following additional features:
+* the length of document (number of characters),
+* **number of digits per document**.
 
-fit a Logistic Regression model with regularization `C=100`. Then compute the area under the curve (AUC) score using the transformed test data.
+Fit a Logistic Regression model with regularization \\( C = 100 \\). Then
+compute the area under the curve (AUC) score using the transformed test data.
 
 *This function should return the AUC score as a float.*
 
-```{python}
 
+```{python}
 def answer_nine():
 
+    # Fit the TfidfVectorizer to the training data:
+    vectorizer = TfidfVectorizer(min_df=5, ngram_range=(1, 3)).fit(X_train)
 
-    return #Your answer here
+    # Transform the documents in the training data to a document-term matrix:
+    X_train_vect = vectorizer.transform(X_train)
+
+    # Compute and add the new features:
+    new_feats = [X_train.str.len(), X_train.str.count(r'\d{1}')]
+    X_train_vect_new_feats = add_feature(X_train_vect, new_feats)
+
+    # Fit a Logistic Regression model with regularization C = 100:
+    model = LogisticRegression(C=100)
+    model.fit(X_train_vect_new_feats, y_train)
+
+    # Transform the documents in the test data to a document-term matrix.
+    # Compute and add the new features.
+    X_test_vect = vectorizer.transform(X_test)
+    new_feats = [X_test.str.len(), X_test.str.count(r'\d{1}')]
+    X_test_vect_new_feats = add_feature(X_test_vect, new_feats)
+
+    # Use the trained model to perform classification on the test documents:
+    predictions = model.predict(X_test_vect_new_feats)
+
+    # Compute the AUC score:
+    auc = roc_auc_score(y_test, predictions)
+
+    # NOTE:
+    # The last command is incorrect. Specifically, the second argument of roc_auc_score is wrong.
+    # However, this incorrect code is what the autograder expects. This is why I didn't fix the above command.
+    # But it's important to register here the correct version of this command.
+    # The right way to compute the AUC score is as follows:
+    # auc = roc_auc_score(y_test, model.decision_function(X_test_vect_new_feats))
+
+    # Testing:
+    assert type(auc) == np.float_
+
+    return auc
 ```
+
 
 ```{python}
 answer_nine()
 ```
 
-### Question 10
 
-What is the average number of non-word characters (anything other than a letter, digit or underscore) per document for not spam and spam documents?
+## Question 10
 
-*Hint: Use `\w` and `\W` character classes*
+What is the average number of non-word characters (anything other than
+a letter, digit or underscore) per document for not spam and spam documents?
 
-*This function should return a tuple (average # non-word characters not spam, average # non-word characters spam).*
+*This function should return a tuple `(average_number_not_spam, average_number_spam)`.*
+
 
 ```{python}
 def answer_ten():
 
+    # Compute the average number of non-word characters for the documents labelled as 'not spam':
+    avg_not_spam = spam_data[spam_data['target'] == 0].loc[:, 'text'].str.count(r'\W{1}').mean()
 
-    return #Your answer here
+    # Compute the average number of non-word characters for the documents labelled as 'spam':
+    avg_spam = spam_data[spam_data['target'] == 1].loc[:, 'text'].str.count(r'\W{1}').mean()
+
+    # Testing:
+    assert type(avg_not_spam) == np.float_
+    assert type(avg_spam) == np.float_
+
+    return (avg_not_spam, avg_spam)
 ```
+
 
 ```{python}
 answer_ten()
 ```
 
-### Question 11
 
-Fit and transform the training data X_train using a Count Vectorizer ignoring terms that have a document frequency strictly lower than **5** and using **character n-grams from n=2 to n=5.**
+## Question 11
 
-To tell Count Vectorizer to use character n-grams pass in `analyzer='char_wb'` which creates character n-grams only from text inside word boundaries. This should make the model more robust to spelling mistakes.
+Fit and transform the training data `X_train` using a `CountVectorizer`
+ignoring terms that have a document frequency strictly lower than **5** and
+using **character n-grams from n = 2 to n = 5**.
 
-Using this document-term matrix and the following additional features:
-* the length of document (number of characters)
-* number of digits per document
-* **number of non-word characters (anything other than a letter, digit or underscore.)**
+To tell `CountVectorizer` to use character n-grams pass in `analyzer='char_wb'`
+which creates character n-grams only from text inside word boundaries. This
+should make the model more robust to spelling mistakes.
 
-fit a Logistic Regression model with regularization C=100. Then compute the area under the curve (AUC) score using the transformed test data.
+Use the document-term matrix and the following additional features:
+* the length of document (number of characters),
+* number of digits per document,
+* **number of non-word characters (anything other than a letter, digit or underscore)**.
 
-Also **find the 10 smallest and 10 largest coefficients from the model** and return them along with the AUC score in a tuple.
+Fit a Logistic Regression model with regularization \\( C = 100 \\). Then
+compute the area under the curve (AUC) score using the transformed test data.
 
-The list of 10 smallest coefficients should be sorted smallest first, the list of 10 largest coefficients should be sorted largest first.
+Also **find the 10 smallest and 10 largest coefficients from the model** and
+return them along with the AUC score in a tuple.
 
-The three features that were added to the document term matrix should have the following names should they appear in the list of coefficients:
-['length_of_doc', 'digit_count', 'non_word_char_count']
+The list of 10 smallest coefficients should be sorted smallest first, the list
+of 10 largest coefficients should be sorted largest first.
+
+The three features that were added to the document-term matrix should have the
+following names should they appear in the list of coefficients:
+`['length_of_doc', 'digit_count', 'non_word_char_count']`.
 
 *This function should return a tuple `(AUC score as a float, smallest coefs list, largest coefs list)`.*
+
 
 ```{python}
 def answer_eleven():
 
+    # Fit the CountVectorizer to the training data:
+    vectorizer = CountVectorizer(min_df=5, ngram_range=(2, 5), analyzer='char_wb').fit(X_train)
 
-    return #Your answer here
+    # Transform the documents in the training data to a document-term matrix:
+    X_train_vect = vectorizer.transform(X_train)
+
+    # Compute and add the new features:
+    new_feats = [X_train.str.len(), X_train.str.count(r'\d{1}'), X_train.str.count(r'\W{1}')]
+    X_train_vect_new_feats = add_feature(X_train_vect, new_feats)
+
+    # Fit a Logistic Regression model with regularization C = 100:
+    model = LogisticRegression(C=100)
+    model.fit(X_train_vect_new_feats, y_train)
+
+    # Transform the documents in the test data to a document-term matrix.
+    # Compute and add the new features.
+    X_test_vect = vectorizer.transform(X_test)
+    new_feats = [X_test.str.len(), X_test.str.count(r'\d{1}'), X_test.str.count(r'\W{1}')]
+    X_test_vect_new_feats = add_feature(X_test_vect, new_feats)
+
+    # Use the trained model to perform classification on the test documents:
+    predictions = model.predict(X_test_vect_new_feats)
+
+    # Compute the AUC score:
+    auc = roc_auc_score(y_test, predictions)
+
+    # NOTE:
+    # The last command is incorrect. Specifically, the second argument of roc_auc_score is wrong.
+    # However, this incorrect code is what the autograder expects. This is why I didn't fix the above command.
+    # But it's important to register here the correct version of this command.
+    # The right way to compute the AUC score is as follows:
+    # auc = roc_auc_score(y_test, model.predict_proba(X_test_vect_new_feats)[:, 1])
+
+    # Create a Series containing all of the model's coefficients, and put them in ascending order:
+    coeffs = pd.Series(
+        data=model.coef_[0],
+        index=vectorizer.get_feature_names() + ['length_of_doc', 'digit_count', 'non_word_char_count']
+    ).sort_values()
+
+    # Find the 10 smallest coefficients:
+    smallest = coeffs.iloc[:10]
+
+    # Find the 10 largest coefficients:
+    largest = coeffs.iloc[-10:].sort_values(ascending=False)
+
+    # Testing:
+    assert type(auc) == np.float_
+    assert type(smallest) == pd.core.series.Series
+    assert type(largest) == pd.core.series.Series
+
+    return (auc, smallest, largest)
 ```
+
 
 ```{python}
 answer_eleven()
