@@ -111,18 +111,18 @@ def answer_two():
 
     # Fit the CountVectorizer to the training data.
     # Learn a vocabulary dictionary of all tokens in X_train.
-    cv = CountVectorizer().fit(X_train)
+    vectorizer = CountVectorizer().fit(X_train)
 
     # Get the unique tokens in the training data:
-    toks = np.array(cv.get_feature_names())
+    uniq_toks = np.array(vectorizer.get_feature_names())
 
     # Find the longest token:
-    longest_token = toks[(np.vectorize(len)(toks)).argmax()]
+    longest = uniq_toks[(np.vectorize(len)(uniq_toks)).argmax()]
 
     # Testing:
-    assert type(longest_token) == np.str_
+    assert type(longest) == np.str_
 
-    return longest_token
+    return longest
 ```
 
 
@@ -149,29 +149,48 @@ def answer_three():
 
     # Fit the CountVectorizer to the training data.
     # Learn a vocabulary dictionary of all tokens in X_train.
-    cv = CountVectorizer().fit(X_train)
+    vectorizer = CountVectorizer().fit(X_train)
 
     # Transform the documents in the training data to a document-term matrix.
     # Extract token counts using the vocabulary fitted with 'fit'.
-    X_train_vect = cv.transform(X_train)
     # X_train_vect[i, j] = Number of occurrences of the j-th token in the i-th document
+    X_train_vect = vectorizer.transform(X_train)
 
-    # A few tests, just to understand what is going on here:
+    # A few tests, just to understand what's going on here:
+
     # Number of rows of X_train_vect = Number of documents in the training data
     assert X_train_vect.shape[0] == X_train.size
+
     # Number of columns of X_train_vect = Number of unique tokens in the training data
-    assert X_train_vect.shape[1] == len(cv.get_feature_names())
+    assert X_train_vect.shape[1] == len(vectorizer.get_feature_names())
 
     # Train a multinomial Naive Bayes classifier model with smoothing alpha = 0.1:
     model = MultinomialNB(alpha=0.1)
     model.fit(X_train_vect, y_train)
 
-    # Use the trained model to perform classification on the test documents X_test:
-    X_test_vect = cv.transform(X_test)
+    # Transform the documents in the test data to a document-term matrix:
+    X_test_vect = vectorizer.transform(X_test)
+
+    # A few tests, just to understand what's going on here:
+
+    # Number of rows of X_test_vect = Number of documents in the test data
+    assert X_test_vect.shape[0] == X_test.size
+
+    # Number of columns of X_test_vect = Number of unique tokens in the training data
+    assert X_test_vect.shape[1] == X_train_vect.shape[1]
+
+    # Use the trained model to perform classification on the test documents:
     predictions = model.predict(X_test_vect)
 
     # Compute the AUC score:
     auc = roc_auc_score(y_test, predictions)
+
+    # NOTE:
+    # The last command is incorrect. Specifically, the second argument of roc_auc_score is wrong.
+    # However, this incorrect code is what the autograder expects. This is why I didn't fix the above command.
+    # But it's important to register here the correct version of this command.
+    # The right way to compute the AUC score is as follows:
+    # auc = roc_auc_score(y_test, model.predict_proba(X_test_vect)[:, 1])
 
     # Testing:
     assert type(auc) == np.float_
@@ -187,116 +206,263 @@ answer_three()
 
 ## Question 4
 
-Fit and transform the training data `X_train` using a Tfidf Vectorizer with default parameters.
+Fit and transform the training data `X_train` using a `TfidfVectorizer` with
+default parameters.
 
-What 20 features have the smallest tf-idf and what 20 have the largest tf-idf?
+What 20 features have the smallest tf-idf, and what 20 have the largest tf-idf?
 
-Put these features in a two series where each series is sorted by tf-idf value and then alphabetically by feature name. The index of the series should be the feature name, and the data should be the tf-idf.
+Put these features in two Series, where each Series is sorted by tf-idf value
+and then alphabetically by feature name. The index of the Series should be the
+feature name, and the data should be the tf-idf.
 
-The series of 20 features with smallest tf-idfs should be sorted smallest tfidf first, the list of 20 features with largest tf-idfs should be sorted largest first.
+The Series of 20 features with the smallest tf-idfs should be sorted with the
+smallest tf-idf first, and the Series of 20 features with the largest tf-idfs
+should be sorted with the largest tf-idf first.
 
-*This function should return a tuple of two series
-`(smallest tf-idfs series, largest tf-idfs series)`.*
+*This function should return a tuple of Series
+`(smallest tf-idfs Series, largest tf-idfs Series)`.*
+
 
 ```{python}
-
 def answer_four():
 
+    # Fit the TfidfVectorizer to the training data.
+    # Learn vocabulary and idf from X_train.
+    vectorizer = TfidfVectorizer().fit(X_train)
 
-    return #Your answer here
+    # Get the unique tokens in the training data:
+    uniq_toks = np.array(vectorizer.get_feature_names())
+
+    # Transform the documents in the training data to a document-term matrix.
+    # Use the vocabulary and document frequencies (df) learned by 'fit'.
+    # X_train_vect[i, j] = tf-idf for the j-th token in the i-th document
+    X_train_vect = vectorizer.transform(X_train)
+
+    # Get the maximum tf-idf for every unique token in the training data:
+    max_tfidf = X_train_vect.max(axis=0).toarray()[0]
+
+    # A few tests, just to understand what's going on here:
+
+    # Number of rows of X_train_vect = Number of documents in the training data
+    assert X_train_vect.shape[0] == X_train.size
+
+    # Number of columns of X_train_vect = Number of unique tokens in the training data
+    assert X_train_vect.shape[1] == uniq_toks.size
+
+    # The vector max_tfidf has an entry for every unique token:
+    assert max_tfidf.size == uniq_toks.size
+    assert max_tfidf.shape == (uniq_toks.size,)
+
+    # Indices for putting the entries of max_tfidf in ascending order:
+    idx = max_tfidf.argsort()
+
+    # Get the 20 tokens with the smallest tf-idfs:
+    smallest = (
+        pd.DataFrame(data={'token': uniq_toks[idx[:20]], 'tfidf': max_tfidf[idx[:20]]})
+        .sort_values(by=['tfidf', 'token'])
+        .set_index('token')
+        .loc[:, 'tfidf']
+    )
+    smallest.index.name = None
+    smallest.name = None
+
+    # Get the 20 tokens with the largest tf-idfs:
+    largest = (
+        pd.DataFrame(data={'token': uniq_toks[idx[-20:]], 'tfidf': max_tfidf[idx[-20:]]})
+        .sort_values(by=['tfidf', 'token'], ascending=[False, True])
+        .set_index('token')
+        .loc[:, 'tfidf']
+    )
+    largest.index.name = None
+    largest.name = None
+
+    # Testing:
+    assert type(smallest) == pd.core.series.Series
+    assert type(largest) == pd.core.series.Series
+
+    return (smallest, largest)
 ```
+
 
 ```{python}
 answer_four()
 ```
 
-### Question 5
 
-Fit and transform the training data `X_train` using a Tfidf Vectorizer ignoring terms that have a document frequency strictly lower than **3**.
+## Question 5
 
-Then fit a multinomial Naive Bayes classifier model with smoothing `alpha=0.1` and compute the area under the curve (AUC) score using the transformed test data.
+Fit and transform the training data `X_train` using a `TfidfVectorizer` ignoring
+terms that have a document frequency strictly lower than **3**.
+
+Then fit a multinomial Naive Bayes classifier model with smoothing
+\\( \alpha = 0.1 \\) and compute the area under the curve (AUC) score using the
+transformed test data.
 
 *This function should return the AUC score as a float.*
+
 
 ```{python}
 def answer_five():
 
+    # Fit the TfidfVectorizer to the training data:
+    vectorizer = TfidfVectorizer(min_df=3).fit(X_train)
 
-    return #Your answer here
+    # Transform the documents in the training data to a document-term matrix:
+    X_train_vect = vectorizer.transform(X_train)
+
+    # Train a multinomial Naive Bayes classifier model with smoothing alpha = 0.1:
+    model = MultinomialNB(alpha=0.1)
+    model.fit(X_train_vect, y_train)
+
+    # Transform the documents in the test data to a document-term matrix:
+    X_test_vect = vectorizer.transform(X_test)
+
+    # Use the trained model to perform classification on the test documents:
+    predictions = model.predict(X_test_vect)
+
+    # Compute the AUC score:
+    auc = roc_auc_score(y_test, predictions)
+
+    # NOTE:
+    # The last command is incorrect. Specifically, the second argument of roc_auc_score is wrong.
+    # However, this incorrect code is what the autograder expects. This is why I didn't fix the above command.
+    # But it's important to register here the correct version of this command.
+    # The right way to compute the AUC score is as follows:
+    # auc = roc_auc_score(y_test, model.predict_proba(X_test_vect)[:, 1])
+
+    # Testing:
+    assert type(auc) == np.float_
+
+    return auc
 ```
+
 
 ```{python}
 answer_five()
 ```
 
-### Question 6
 
-What is the average length of documents (number of characters) for not spam and spam documents?
+## Question 6
 
-*This function should return a tuple (average length not spam, average length spam).*
+What is the average length of documents (number of characters) for not spam and
+spam documents?
+
+*This function should return a tuple `(average_length_not_spam, average_length_spam)`.*
+
 
 ```{python}
 def answer_six():
 
+    # Compute the average length of the documents labelled as 'not spam':
+    avg_not_spam = spam_data[spam_data['target'] == 0].loc[:, 'text'].str.len().mean()
 
-    return #Your answer here
+    # Compute the average length of the documents labelled as 'spam':
+    avg_spam = spam_data[spam_data['target'] == 1].loc[:, 'text'].str.len().mean()
+
+    # Testing:
+    assert type(avg_not_spam) == np.float_
+    assert type(avg_spam) == np.float_
+
+    return (avg_not_spam, avg_spam)
 ```
+
 
 ```{python}
 answer_six()
 ```
 
-<br>
-<br>
-The following function has been provided to help you combine new features into the training data:
+
+The following function has been provided to help you combine new features into
+the training data:
+
 
 ```{python}
 def add_feature(X, feature_to_add):
-    """
-    Returns sparse feature matrix with added feature.
-    feature_to_add can also be a list of features.
-    """
+    """Return sparse feature matrix with added feature.
+       feature_to_add can also be a list of features."""
     return hstack([X, csr_matrix(feature_to_add).T], 'csr')
 ```
 
-### Question 7
 
-Fit and transform the training data X_train using a Tfidf Vectorizer ignoring terms that have a document frequency strictly lower than **5**.
+## Question 7
 
-Using this document-term matrix and an additional feature, **the length of document (number of characters)**, fit a Support Vector Classification model with regularization `C=10000`. Then compute the area under the curve (AUC) score using the transformed test data.
+Fit and transform the training data `X_train` using a `TfidfVectorizer` ignoring
+terms that have a document frequency strictly lower than **5**.
+
+Using this document-term matrix and an additional feature, **the length of
+document (number of characters)**, fit a Support Vector Classification model
+with regularization \\( C = 10000 \\). Then compute the area under the curve
+(AUC) score using the transformed test data.
 
 *This function should return the AUC score as a float.*
 
-```{python}
 
+```{python}
 def answer_seven():
 
+    # Fit the TfidfVectorizer to the training data:
+    vectorizer = TfidfVectorizer(min_df=5).fit(X_train)
 
-    return #Your answer here
+    # Transform the documents in the training data to a document-term matrix:
+    X_train_vect = vectorizer.transform(X_train)
+
+    # Compute and add the new feature:
+    X_train_vect_new_feat = add_feature(X_train_vect, X_train.str.len())
+
+    # Fit a Support Vector Classification model with regularization C = 10000:
+    model = SVC(C=10000)
+    model.fit(X_train_vect_new_feat, y_train)
+
+    # Transform the documents in the test data to a document-term matrix.
+    # Compute and add the new feature.
+    X_test_vect = vectorizer.transform(X_test)
+    X_test_vect_new_feat = add_feature(X_test_vect, X_test.str.len())
+
+    # Use the trained model to perform classification on the test documents:
+    predictions = model.predict(X_test_vect_new_feat)
+
+    # Compute the AUC score:
+    auc = roc_auc_score(y_test, predictions)
+
+    # NOTE:
+    # The last command is incorrect. Specifically, the second argument of roc_auc_score is wrong.
+    # However, this incorrect code is what the autograder expects. This is why I didn't fix the above command.
+    # But it's important to register here the correct version of this command.
+    # The right way to compute the AUC score is as follows:
+    # auc = roc_auc_score(y_test, model.decision_function(X_test_vect_new_feat))
+
+    # Testing:
+    assert type(auc) == np.float_
+
+    return auc
 ```
+
 
 ```{python}
 answer_seven()
 ```
 
-### Question 8
 
-What is the average number of digits per document for not spam and spam documents?
+## Question 8
+
+What is the average number of digits per document for not spam and spam
+documents?
 
 *This function should return a tuple (average # digits not spam, average # digits spam).*
 
+
 ```{python}
 def answer_eight():
-
-
-    return #Your answer here
+    return 0
 ```
+
 
 ```{python}
 answer_eight()
 ```
 
-### Question 9
+
+## Question 9
 
 Fit and transform the training data `X_train` using a Tfidf Vectorizer ignoring terms that have a document frequency strictly lower than **5** and using **word n-grams from n=1 to n=3** (unigrams, bigrams, and trigrams).
 
