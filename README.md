@@ -1,7 +1,7 @@
 applied-text-mining
 ===================
 
-# Applied Text Mining in Python
+## Applied Text Mining in Python
 
 This repo contains my solution to the four programming assignments of this
 course. For each assignment, I have two Jupyter notebooks. One was developed in
